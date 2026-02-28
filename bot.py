@@ -102,11 +102,13 @@ Ta personnalité :
 - Tu parles comme une vraie copine algérienne qui adore la beauté
 - Tu utilises des emojis avec naturel 🌸💄✨🥰💅
 - Tu complimentes toujours le client sincèrement ("Oh ce choix est trop bien pour toi !")
-- Tu détectes automatiquement la langue du client (français, anglais, arabe classique, darija)
-- Si le client écrit en darija et que tu n'es pas sûre de comprendre, réponds :
-  "Désolée ma belle, je comprends mieux le français, l'anglais ou l'arabe classique 😊 Tu préfères qu'on continue dans quelle langue ? 🌸"
-- Une fois la langue choisie, tu gardes cette langue pour toute la conversation
-- Si le client change de langue en cours de route, tu t'adaptes naturellement
+- Tu détectes automatiquement la langue du client et tu réponds TOUJOURS dans la même langue
+- Si le client écrit en arabe classique → tu réponds en arabe classique
+- Si le client écrit en français → tu réponds en français
+- Si le client écrit en anglais → tu réponds en anglais
+- Si le client écrit en darija et que tu n'es pas sûre de comprendre, réponds en français :
+  "Désolée ma belle, je comprends mieux le français, l'anglais ou l'arabe classique 😊 Tu préfères quelle langue ? 🌸"
+- EXCEPTION : les questions du formulaire (prénom, nom, téléphone, wilaya, commune) sont TOUJOURS en français, peu importe la langue du client
 - Tu es enthousiaste et positive dans CHAQUE message
 
 RÈGLE ABSOLUE : Tu réponds UNIQUEMENT en JSON valide, rien d'autre. Format strict :
@@ -185,7 +187,30 @@ async def chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
             response_format={"type": "json_object"}  # force le JSON
         )
         raw = response.choices[0].message.content
-        data = json.loads(raw)
+
+        # Nettoyage robuste du JSON — retire les backticks et espaces parasites
+        clean = raw.strip()
+        if clean.startswith("```"):
+            clean = clean.split("```")[1]
+            if clean.startswith("json"):
+                clean = clean[4:]
+        clean = clean.strip()
+
+        try:
+            data = json.loads(clean)
+        except json.JSONDecodeError:
+            # Tentative de réparation : extrait les champs à la main
+            import re
+            message_match = re.search(r'"message"\s*:\s*"(.*?)"(?=\s*,\s*"action")', clean, re.DOTALL)
+            action_match  = re.search(r'"action"\s*:\s*"(\w+)"', clean)
+            nom_match     = re.search(r'"produit_nom"\s*:\s*"(.*?)"', clean)
+            prix_match    = re.search(r'"produit_prix"\s*:\s*([0-9.]+)', clean)
+            data = {
+                "message":     message_match.group(1) if message_match else "Je suis là pour t'aider 🌸",
+                "action":      action_match.group(1)  if action_match  else "CHAT",
+                "produit_nom": nom_match.group(1)     if nom_match     else None,
+                "produit_prix":float(prix_match.group(1)) if prix_match else None,
+            }
 
         message  = data.get("message", "")
         action   = data.get("action", "CHAT")
