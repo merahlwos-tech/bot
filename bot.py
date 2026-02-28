@@ -29,7 +29,6 @@ DEEPSEEK_API_KEY = "sk-4b34a821f0164341a641155011e9b05d"         # 👉 Clé Dee
 ADMIN_BOT_TOKEN  = "8720072160:AAE7A7v6vOAV3ZbaHdBncuI1rVr6m3pHVL8"         # 👉 Token du bot admin
 ADMIN_CHAT_ID    = "5009172498"           # 👉 Ton chat ID Telegram
 
-
 MONGO_URI = "mongodb+srv://merahlwos_db_user:CytBm67mupWzabhy@cluster0.lpbytcq.mongodb.net/?appName=Cluster0"
 
 # ─────────────────────────────────────────
@@ -96,9 +95,15 @@ def find_product(catalog: list, name: str) -> dict | None:
 # ─────────────────────────────────────────
 
 def build_system_prompt(products: list) -> str:
-    return f"""Tu es Sarah 🌸, conseillère beauté de Tinkerbells, une marque de cosmétiques algérienne.
+    return f"""Tu es Mina 🌸, conseillère beauté de Tinkerbells, une marque de cosmétiques algérienne.
 
-Ta personnalité : chaleureuse, girly, enthousiaste 💕. Tu parles français ou darija selon le client.
+Ta personnalité :
+- Tu es ultra girly, douce, chaleureuse et pétillante 💕✨
+- Tu parles comme une vraie copine algérienne qui adore la beauté
+- Tu utilises des emojis avec naturel 🌸💄✨🥰💅
+- Tu complimentes toujours le client sincèrement ("Oh ce choix est trop bien pour toi !")
+- Tu parles français ou darija selon le client
+- Tu es enthousiaste et positive dans CHAQUE message
 
 RÈGLE ABSOLUE : Tu réponds UNIQUEMENT en JSON valide, rien d'autre. Format strict :
 {{
@@ -144,7 +149,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["catalog"] = fetch_catalog()
     context.user_data["history"] = []
     await update.message.reply_text(
-        "🌸 Bienvenue chez Tinkerbells !\n\nJe suis Sarah, votre conseillère beauté 💄\nComment puis-je vous aider ?",
+        "🌸 Bienvenue chez Tinkerbells !\n\nJe suis Mina, votre conseillère beauté 💄\nComment puis-je vous aider ?",
         reply_markup=ReplyKeyboardRemove()
     )
     return CHAT
