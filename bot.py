@@ -415,7 +415,7 @@ async def add_more(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         msg = ai_text(
             system=BASE_PERSONA,
-            user="[SYSTEM] Le client finalise. Commence le formulaire de livraison de façon naturelle (comme un vrai vendeur). Demande son prénom SANS dire bonjour ni faire de longue intro.",
+            user="[SYSTEM] Le client finalise. Commence le formulaire de livraison de façon naturelle (comme un vrai vendeur). Demande son prénom SANS dire bonjour ni faire de longue intro. N'utilise JAMAIS des formules comme 'Pour plus de conseils' ou 'Pour mieux vous aider' — va directement à la question.",
             lang=lang
         )
         await update.message.reply_text(msg or "Parfait ! Ton prénom ?", reply_markup=ReplyKeyboardRemove())
@@ -430,7 +430,7 @@ async def get_prenom(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["prenom"] = update.message.text.strip()
     msg = ai_text(
         system=BASE_PERSONA,
-        user=f"[SYSTEM] Prénom reçu : {context.user_data['prenom']}. Enchaîne naturellement et demande le nom de famille. Pas de 'bonjour', pas de répétition, juste fluide.",
+        user=f"[SYSTEM] Prénom reçu : {context.user_data['prenom']}. Enchaîne naturellement et demande le nom de famille. Pas de 'bonjour', pas de répétition, juste fluide. Dis simplement quelque chose comme 'Maintenant ton nom de famille ?' — JAMAIS de formules comme 'Pour plus de conseils' ou 'Pour mieux vous aider'.",
         lang=lang
     )
     await update.message.reply_text(msg or "Et ton nom ?")
@@ -441,7 +441,7 @@ async def get_nom(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["nom"] = update.message.text.strip()
     msg = ai_text(
         system=BASE_PERSONA,
-        user=f"[SYSTEM] Nom reçu : {context.user_data['nom']}. Enchaîne et demande le numéro de téléphone. Court et naturel.",
+        user=f"[SYSTEM] Nom reçu : {context.user_data['nom']}. Enchaîne et demande le numéro de téléphone. Court et naturel. Dis quelque chose comme 'Et ton numéro de téléphone ?' — JAMAIS de formules comme 'Pour plus de conseils' ou 'Pour mieux vous aider'.",
         lang=lang
     )
     await update.message.reply_text(msg or "Ton numéro de téléphone ? 📱")
@@ -452,7 +452,7 @@ async def get_phone(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["phone"] = update.message.text.strip()
     msg = ai_text(
         system=BASE_PERSONA,
-        user=f"[SYSTEM] Téléphone reçu : {context.user_data['phone']}. Demande la wilaya. Court et naturel.",
+        user=f"[SYSTEM] Téléphone reçu : {context.user_data['phone']}. Demande la wilaya. Court et naturel. Dis quelque chose comme 'Ta wilaya ?' ou 'On passe à ta wilaya !' — JAMAIS de formules comme 'Pour plus de conseils' ou 'Pour mieux vous aider'.",
         lang=lang
     )
     await update.message.reply_text(msg or "Ta wilaya ? 🗺️")
@@ -463,7 +463,7 @@ async def get_wilaya(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["wilaya"] = update.message.text.strip()
     msg = ai_text(
         system=BASE_PERSONA,
-        user=f"[SYSTEM] Wilaya reçue : {context.user_data['wilaya']}. Demande la commune. Court et naturel.",
+        user=f"[SYSTEM] Wilaya reçue : {context.user_data['wilaya']}. Demande la commune. Court et naturel. Dis quelque chose comme 'Et ta commune ?' ou 'J'ai besoin de ta commune aussi !' — JAMAIS de formules comme 'Pour plus de conseils' ou 'Pour mieux vous aider'.",
         lang=lang
     )
     await update.message.reply_text(msg or "Ta commune ? 🏘️")
