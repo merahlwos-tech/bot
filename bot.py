@@ -1,5 +1,5 @@
 """
-🌸 Tinkerbells — Bot Telegram E-commerce Cosmétiques Algérie
+🌸 cvkcosmetique — Bot Telegram E-commerce Cosmétiques Algérie
 =============================================================
 Installation : pip install python-telegram-bot openai pymongo
 """
@@ -24,10 +24,10 @@ from datetime import datetime
 # ─────────────────────────────────────────
 # 🔧 CONFIGURATION
 # ─────────────────────────────────────────
-TELEGRAM_TOKEN   = "8798994407:AAHg8H32FbWegSWVB2j9A7EUOfnLKp3V9rM"        # 👉 Token du bot client
-DEEPSEEK_API_KEY = "sk-4b34a821f0164341a641155011e9b05d"         # 👉 Clé DeepSeek
-ADMIN_BOT_TOKEN  = "8720072160:AAE7A7v6vOAV3ZbaHdBncuI1rVr6m3pHVL8"         # 👉 Token du bot admin
-ADMIN_CHAT_ID    = "5009172498"           # 👉 Ton chat ID Telegram
+TELEGRAM_TOKEN   = "8798994407:AAHg8H32FbWegSWVB2j9A7EUOfnLKp3V9rM"
+DEEPSEEK_API_KEY = "sk-4b34a821f0164341a641155011e9b05d"
+ADMIN_BOT_TOKEN  = "8720072160:AAE7A7v6vOAV3ZbaHdBncuI1rVr6m3pHVL8"
+ADMIN_CHAT_ID    = "5009172498"
 
 MONGO_URI = "mongodb+srv://merahlwos_db_user:CytBm67mupWzabhy@cluster0.lpbytcq.mongodb.net/?appName=Cluster0"
 
@@ -57,7 +57,7 @@ def fetch_catalog() -> list:
     ))
     for p in products:
         p["_id"] = str(p["_id"])
-    logger.info(f"✅ Catalogue : {len(products)} produits")
+    logger.info(f"Catalogue : {len(products)} produits")
     return products
 
 def format_catalog(products: list) -> str:
@@ -68,7 +68,7 @@ def format_catalog(products: list) -> str:
             continue
         desc = (p.get("description") or {})
         desc_text = desc.get("fr") or desc.get("en") or desc.get("ar") or ""
-        line = f"- NOM: {p['name']} | MARQUE: {p.get('brand','')} | CATÉGORIE: {p.get('category','')} | PRIX: {p.get('price','?')} DA"
+        line = f"- NOM: {p['name']} | MARQUE: {p.get('brand','')} | CATEGORIE: {p.get('category','')} | PRIX: {p.get('price','?')} DA"
         if desc_text:
             line += f" | DESC: {desc_text}"
         lines.append(line)
@@ -102,11 +102,46 @@ def format_panier(panier: list) -> str:
     return "\n".join(lines)
 
 # ─────────────────────────────────────────
-# 🤖 PROMPT DEEPSEEK
+# 🤖 HELPERS IA
+# ─────────────────────────────────────────
+
+def ai_text(system: str, user: str) -> str:
+    """Appel DeepSeek, retourne le texte du champ 'message' ou le texte brut."""
+    try:
+        resp = ai_client.chat.completions.create(
+            model="deepseek-chat",
+            messages=[{"role": "system", "content": system}, {"role": "user", "content": user}],
+            response_format={"type": "json_object"},
+            max_tokens=400,
+        )
+        data = json.loads(resp.choices[0].message.content)
+        return data.get("message", str(data))
+    except Exception as e:
+        logger.error(f"ai_text error: {e}")
+        return ""
+
+def ai_json(system: str, user: str) -> dict:
+    """Appel DeepSeek qui retourne du JSON."""
+    try:
+        resp = ai_client.chat.completions.create(
+            model="deepseek-chat",
+            messages=[{"role": "system", "content": system}, {"role": "user", "content": user}],
+            response_format={"type": "json_object"},
+            max_tokens=300,
+        )
+        return json.loads(resp.choices[0].message.content)
+    except Exception as e:
+        logger.error(f"ai_json error: {e}")
+        return {}
+
+BASE_PERSONA = "Tu es Mehdi 🌸, conseiller beauté de cvkcosmetique, une marque de cosmétiques algérienne. Tu es chaleureux, enthousiaste et utilises des emojis. Réponds UNIQUEMENT en JSON avec le champ 'message'."
+
+# ─────────────────────────────────────────
+# 🤖 PROMPT DEEPSEEK PRINCIPAL
 # ─────────────────────────────────────────
 
 def build_system_prompt(products: list) -> str:
-    return f"""Tu es Mina 🌸, conseillère beauté de Tinkerbells, une marque de cosmétiques algérienne.
+    return f"""Tu es Mehdi 🌸, conseiller beauté de cvkcosmetique, une marque de cosmétiques algérienne.
 
 Ta personnalité :
 - Tu es ultra girly, douce, chaleureuse et pétillante 💕✨
@@ -122,7 +157,7 @@ Ta personnalité :
 - EXCEPTION : le formulaire (prénom, nom, téléphone, wilaya, commune) est TOUJOURS en français
 - Tu es enthousiaste et positive dans CHAQUE message
 
-RÈGLE ABSOLUE : Tu réponds UNIQUEMENT en JSON valide. Format strict :
+REGLE ABSOLUE : Tu réponds UNIQUEMENT en JSON valide. Format strict :
 {{
   "message": "ton message au client",
   "action": "CHAT" | "COMMANDER" | "DEMANDER_CONFIRMATION",
@@ -130,21 +165,21 @@ RÈGLE ABSOLUE : Tu réponds UNIQUEMENT en JSON valide. Format strict :
   "produit_prix": prix en nombre si action=COMMANDER ou DEMANDER_CONFIRMATION, sinon null
 }}
 
-═══ LOGIQUE DES ACTIONS ═══
+LOGIQUE DES ACTIONS :
 
-"CHAT" → pour conseiller, poser des questions, présenter des produits.
+"CHAT" pour conseiller, poser des questions, présenter des produits.
   - Pour les soins cheveux : pose 1-2 questions avant de recommander
   - Pour la peau : demande le type de peau si pas mentionné
   - Mentionne TOUJOURS la marque ET le nom exact
   - Le client peut ajouter PLUSIEURS produits à sa commande
 
-"DEMANDER_CONFIRMATION" → le client semble intéressé mais pas encore sûr.
+"DEMANDER_CONFIRMATION" le client semble intéressé mais pas encore sûr.
 
-"COMMANDER" → quand le client veut CLAIREMENT acheter un produit.
+"COMMANDER" quand le client veut CLAIREMENT acheter un produit.
   - "je le veux", "je la veux", "j'achète", "je prends", "oui", "ok", "go", "wah", "bghitha"
-  ⚠️ Si le client dit OUI après ta question de confirmation → COMMANDER obligatoire
+  Si le client dit OUI après ta question de confirmation → COMMANDER obligatoire
 
-═══ RÈGLES ABSOLUES ═══
+REGLES ABSOLUES :
 - Ne propose QUE des produits du catalogue
 - NE demande JAMAIS nom, prénom, téléphone, adresse — le système s'en charge
 - NE fais JAMAIS de récapitulatif de commande
@@ -159,18 +194,25 @@ RÈGLE ABSOLUE : Tu réponds UNIQUEMENT en JSON valide. Format strict :
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.clear()
-    context.user_data["catalog"] = fetch_catalog()
+    catalog = fetch_catalog()
+    context.user_data["catalog"] = catalog
     context.user_data["history"] = []
     context.user_data["panier"]  = []
-    await update.message.reply_text(
-        "🌸 Bienvenue chez Tinkerbells !\n\nJe suis Mina, votre conseillère beauté 💄\nComment puis-je vous aider ?",
-        reply_markup=ReplyKeyboardRemove()
+
+    msg = ai_text(
+        system=BASE_PERSONA,
+        user="[SYSTEM] Le client ouvre le bot pour la première fois. Génère un message de bienvenue chaleureux en tant que Mehdi de cvkcosmetique et propose de l'aider."
     )
+    await update.message.reply_text(msg or "🌸 Bienvenue chez cvkcosmetique !", reply_markup=ReplyKeyboardRemove())
     return CHAT
 
 async def reset(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.clear()
-    await update.message.reply_text("🔄 Conversation réinitialisée ! Envoyez /start.", reply_markup=ReplyKeyboardRemove())
+    msg = ai_text(
+        system=BASE_PERSONA,
+        user="[SYSTEM] La conversation a été réinitialisée. Génère un court message et dis au client d'envoyer /start."
+    )
+    await update.message.reply_text(msg or "🔄 Réinitialisé ! Envoie /start.", reply_markup=ReplyKeyboardRemove())
     return ConversationHandler.END
 
 # ─────────────────────────────────────────
@@ -223,7 +265,6 @@ async def chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
         prod_nom  = data.get("produit_nom")
         prod_prix = data.get("produit_prix")
 
-        # Produit déjà en attente de confirmation → force COMMANDER
         if action == "DEMANDER_CONFIRMATION" and context.user_data.get("produit_en_attente") and prod_nom:
             action = "COMMANDER"
 
@@ -247,17 +288,20 @@ async def chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
             else:
                 item = {"id": None, "nom": prod_nom, "brand": "", "prix": prod_prix or 0}
 
-            # Ajoute au panier
             panier = context.user_data.get("panier", [])
             panier.append(item)
             context.user_data["panier"] = panier
             context.user_data["produit_en_attente"] = None
-            logger.info(f"🛒 Panier : {[p['nom'] for p in panier]}")
+            logger.info(f"Panier : {[p['nom'] for p in panier]}")
 
-            # Demande si le client veut ajouter autre chose
+            panier_txt = format_panier(panier)
+            add_msg = ai_text(
+                system=BASE_PERSONA,
+                user=f"[SYSTEM] Le client vient d'ajouter un produit. Panier actuel :\n{panier_txt}\nConfirme l'ajout avec enthousiasme, affiche le panier et demande s'il veut ajouter autre chose."
+            )
             keyboard = [["✅ Non, je finalise ma commande"], ["🛍️ Oui, j'ajoute autre chose"]]
             await update.message.reply_text(
-                f"✨ Ajouté au panier !\n\n🛒 *Ton panier :*\n{format_panier(panier)}\n\nTu veux ajouter autre chose ?",
+                add_msg or panier_txt,
                 parse_mode="Markdown",
                 reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True, one_time_keyboard=True)
             )
@@ -276,40 +320,27 @@ async def chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return CHAT
 
     except Exception as e:
-        logger.error(f"Erreur : {e}")
-        await update.message.reply_text("⚠️ Une erreur s'est produite, réessaie.")
+        logger.error(f"Erreur chat : {e}")
+        err_msg = ai_text(system=BASE_PERSONA, user="[SYSTEM] Erreur technique. Génère un court message d'excuse et demande de réessayer.")
+        await update.message.reply_text(err_msg or "⚠️ Une erreur s'est produite, réessaie.")
         return CHAT
 
 async def add_more(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Le client veut-il ajouter d'autres produits ?"""
     user_text = update.message.text.lower()
 
-    # DeepSeek analyse si oui ou non
-    try:
-        check = ai_client.chat.completions.create(
-            model="deepseek-chat",
-            messages=[
-                {"role": "system", "content": 'Réponds uniquement en JSON: {"add_more": true} si le message indique que la personne veut ajouter autre chose, {"add_more": false} si elle veut finaliser.'},
-                {"role": "user", "content": user_text}
-            ],
-            response_format={"type": "json_object"}
-        )
-        result   = json.loads(check.choices[0].message.content)
-        add_more_flag = result.get("add_more", False)
-    except Exception:
-        add_more_flag = "ajoute" in user_text or "autre" in user_text or "oui" in user_text
+    result = ai_json(
+        system='Réponds uniquement en JSON: {"add_more": true} si la personne veut ajouter autre chose, {"add_more": false} si elle veut finaliser.',
+        user=user_text
+    )
+    add_more_flag = result.get("add_more", "ajoute" in user_text or "oui" in user_text)
 
     if add_more_flag:
-        await update.message.reply_text(
-            "Super ! 🌸 Qu'est-ce que tu veux ajouter ?",
-            reply_markup=ReplyKeyboardRemove()
-        )
+        msg = ai_text(system=BASE_PERSONA, user="[SYSTEM] Le client veut ajouter un autre produit. Invite-le à choisir avec enthousiasme.")
+        await update.message.reply_text(msg or "Super ! Qu'est-ce que tu veux ajouter ? 🌸", reply_markup=ReplyKeyboardRemove())
         return CHAT
     else:
-        await update.message.reply_text(
-            "Parfait ! 📝 Ton prénom ? 👤",
-            reply_markup=ReplyKeyboardRemove()
-        )
+        msg = ai_text(system=BASE_PERSONA, user="[SYSTEM] Le client finalise sa commande. Lance le formulaire de livraison et demande son prénom.")
+        await update.message.reply_text(msg or "Parfait ! Ton prénom ? 👤", reply_markup=ReplyKeyboardRemove())
         return GET_PRENOM
 
 # ─────────────────────────────────────────
@@ -318,22 +349,26 @@ async def add_more(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def get_prenom(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["prenom"] = update.message.text.strip()
-    await update.message.reply_text("Ton nom ? 👤")
+    msg = ai_text(system=BASE_PERSONA, user=f"[SYSTEM] Le client a donné son prénom : {context.user_data['prenom']}. Accuse réception et demande son nom de famille.")
+    await update.message.reply_text(msg or "Ton nom de famille ? 👤")
     return GET_NOM
 
 async def get_nom(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["nom"] = update.message.text.strip()
-    await update.message.reply_text("Ton numéro de téléphone ? 📱")
+    msg = ai_text(system=BASE_PERSONA, user=f"[SYSTEM] Nom reçu : {context.user_data['nom']}. Demande maintenant le numéro de téléphone.")
+    await update.message.reply_text(msg or "Ton numéro de téléphone ? 📱")
     return GET_PHONE
 
 async def get_phone(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["phone"] = update.message.text.strip()
-    await update.message.reply_text("Ta wilaya ? 🗺️")
+    msg = ai_text(system=BASE_PERSONA, user=f"[SYSTEM] Téléphone reçu : {context.user_data['phone']}. Demande maintenant la wilaya.")
+    await update.message.reply_text(msg or "Ta wilaya ? 🗺️")
     return GET_WILAYA
 
 async def get_wilaya(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["wilaya"] = update.message.text.strip()
-    await update.message.reply_text("Ta commune ? 🏘️")
+    msg = ai_text(system=BASE_PERSONA, user=f"[SYSTEM] Wilaya reçue : {context.user_data['wilaya']}. Demande maintenant la commune.")
+    await update.message.reply_text(msg or "Ta commune ? 🏘️")
     return GET_COMMUNE
 
 async def get_commune(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -341,37 +376,29 @@ async def get_commune(update: Update, context: ContextTypes.DEFAULT_TYPE):
     d      = context.user_data
     panier = d.get("panier", [])
     total  = sum(item["prix"] for item in panier)
+    panier_txt = format_panier(panier)
 
-    recap = (
-        f"📋 Récapitulatif de ta commande :\n\n"
-        f"🛒 Produits :\n{format_panier(panier)}\n\n"
-        f"👤 Prénom : {d.get('prenom')}\n"
-        f"👤 Nom : {d.get('nom')}\n"
-        f"📱 Téléphone : {d.get('phone')}\n"
-        f"🗺️ Wilaya : {d.get('wilaya')}\n"
-        f"🏘️ Commune : {d.get('commune')}\n\n"
-        f"Tape CONFIRMER pour valider ou ANNULER pour annuler."
+    recap_info = (
+        f"Prénom: {d.get('prenom')}, Nom: {d.get('nom')}, "
+        f"Téléphone: {d.get('phone')}, Wilaya: {d.get('wilaya')}, Commune: {d.get('commune')}. "
+        f"Panier:\n{panier_txt}\nTotal: {total} DA."
     )
-    await update.message.reply_text(recap)
+    msg = ai_text(
+        system=BASE_PERSONA,
+        user=f"[SYSTEM] Formulaire complet. {recap_info}. Génère un récapitulatif élégant et demande de taper CONFIRMER ou ANNULER."
+    )
+    await update.message.reply_text(msg or recap_info)
     return CONFIRM_ORDER
 
 async def confirm_order(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_text = update.message.text
     await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
 
-    try:
-        check = ai_client.chat.completions.create(
-            model="deepseek-chat",
-            messages=[
-                {"role": "system", "content": 'Réponds uniquement en JSON: {"confirmed": true} si le message confirme une commande, {"confirmed": false} sinon.'},
-                {"role": "user", "content": user_text}
-            ],
-            response_format={"type": "json_object"}
-        )
-        result    = json.loads(check.choices[0].message.content)
-        confirmed = result.get("confirmed", False)
-    except Exception:
-        confirmed = False
+    result    = ai_json(
+        system='Réponds uniquement en JSON: {"confirmed": true} si le message confirme une commande, {"confirmed": false} sinon.',
+        user=user_text
+    )
+    confirmed = result.get("confirmed", False)
 
     d      = context.user_data
     panier = d.get("panier", [])
@@ -407,12 +434,11 @@ async def confirm_order(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "createdAt":     datetime.utcnow(),
                 "updatedAt":     datetime.utcnow(),
             }
-            result = orders_col.insert_one(order_doc)
-            logger.info(f"✅ Commande sauvegardée : {result.inserted_id}")
+            ins = orders_col.insert_one(order_doc)
+            logger.info(f"Commande sauvegardée : {ins.inserted_id}")
         except Exception as e:
             logger.error(f"Erreur MongoDB : {e}")
 
-        # Notification admin
         try:
             from telegram import Bot
             admin_bot = Bot(token=ADMIN_BOT_TOKEN)
@@ -421,7 +447,7 @@ async def confirm_order(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await admin_bot.send_message(
                 chat_id=ADMIN_CHAT_ID,
                 text=(
-                    f"🛍️ *NOUVELLE COMMANDE TINKERBELLS*\n📅 {now}\n\n"
+                    f"🛍️ *NOUVELLE COMMANDE CVKCOSMETIQUE*\n📅 {now}\n\n"
                     f"🛒 *Produits :*\n{items_txt}\n"
                     f"💰 *Total : {total} DA*\n\n"
                     f"👤 *Prénom :* {d.get('prenom')}\n"
@@ -435,13 +461,18 @@ async def confirm_order(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception as e:
             logger.error(f"Erreur admin : {e}")
 
-        await update.message.reply_text(
-            "🎉 Commande confirmée ! Merci pour ta confiance 🌸\n"
-            "Notre équipe te contactera très bientôt pour la livraison.\n\n"
-            "Tinkerbells — La beauté à votre portée ✨"
+        msg = ai_text(
+            system=BASE_PERSONA,
+            user=f"[SYSTEM] Commande confirmée ! Total {total} DA. Remercie chaleureusement le client et dis que l'équipe cvkcosmetique le contactera bientôt."
         )
+        await update.message.reply_text(msg or "🎉 Commande confirmée ! Merci pour ta confiance 🌸")
+
     else:
-        await update.message.reply_text("❌ Commande annulée. Tu peux continuer à magasiner 🌸")
+        msg = ai_text(
+            system=BASE_PERSONA,
+            user="[SYSTEM] Le client a annulé sa commande. Génère un message compréhensif et invite-le à continuer à explorer cvkcosmetique."
+        )
+        await update.message.reply_text(msg or "❌ Commande annulée. Tu peux continuer à magasiner 🌸")
 
     catalog = fetch_catalog()
     context.user_data.clear()
@@ -472,7 +503,7 @@ def main():
         fallbacks=[CommandHandler("reset", reset)],
     )
     app.add_handler(conv)
-    logger.info("✅ Bot Tinkerbells démarré")
+    logger.info("Bot cvkcosmetique demarré")
     app.run_polling()
 
 if __name__ == "__main__":
